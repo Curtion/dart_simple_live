@@ -1,3 +1,11 @@
+# FORK 说明
+
+当前项目仅在当上游项目未合并必要PR时, 临时合并且提供编译版本。
+
+如果你需要构建自己版本情fork当前项目, 然后使用git tag vX.X.X创建自己的版本标签即可, 当然你需要添加`KEYSTORE_BASE64` `KEY_ALIAS` `KEY_PASSWORD` `STORE_PASSWORD` secrets用于签名。
+
+# 原项目 README.md 内容
+
 > ### ⚠ 本项目不提供Release安装包，请自行编译后运行测试。
 
 
