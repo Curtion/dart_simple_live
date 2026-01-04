@@ -1,0 +1,88 @@
+name: Build Windows
+
+on:
+  workflow_call:
+    inputs:
+      app_dir:
+        required: true
+        type: string
+      flutter_version:
+        required: false
+        type: string
+        default: "3.38.5"
+      release:
+        required: false
+        type: boolean
+        default: false
+      prerelease:
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set Build Version
+        id: version
+        run: |
+          echo "name=${env:GITHUB_REF_NAME}" >> $env:GITHUB_OUTPUT
+          echo "number=${{ github.run_id }}" >> $env:GITHUB_OUTPUT
+
+      - name: Update pubspec.yaml version
+        run: |
+          cd ${{ inputs.app_dir }}
+          $version = "${{ steps.version.outputs.name }}"
+          # 去掉版本号中的 v 前缀
+          $version = $version -replace '^v', ''
+          $build_number = "${{ steps.version.outputs.number }}"
+          (Get-Content pubspec.yaml) -replace '^version:.*', "version: ${version}+${build_number}" | Set-Content pubspec.yaml
+          Write-Host "Updated pubspec.yaml version to ${version}+${build_number}"
+          Get-Content pubspec.yaml -TotalCount 5
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ inputs.flutter_version }}
+          cache: true
+
+      - name: Enable Windows Desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Restore Packages
+        run: |
+          cd ${{ inputs.app_dir }}
+          flutter pub get
+
+      - name: Install flutter_distributor
+        run: dart pub global activate flutter_distributor
+
+      - name: Build Windows
+        run: |
+          cd ${{ inputs.app_dir }}
+          flutter_distributor package --platform windows --targets msix,zip --skip-clean
+
+      - name: Upload Windows
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            ${{ inputs.app_dir }}/build/dist/*/*.msix
+            ${{ inputs.app_dir }}/build/dist/*/*.zip
+
+      - name: Upload Release
+        if: ${{ inputs.release }}
+        uses: softprops/action-gh-release@v1
+        with:
+          name: ${{ steps.version.outputs.name }}
+          prerelease: ${{ inputs.prerelease }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          files: |
+            ${{ inputs.app_dir }}/build/dist/*/*.msix
+            ${{ inputs.app_dir }}/build/dist/*/*.zip

@@ -1,0 +1,91 @@
+name: Build macOS
+
+on:
+  workflow_call:
+    inputs:
+      app_dir:
+        required: true
+        type: string
+      flutter_version:
+        required: false
+        type: string
+        default: "3.38.5"
+      release:
+        required: false
+        type: boolean
+        default: false
+      prerelease:
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set Build Version
+        id: version
+        run: |
+          echo "name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          echo "number=${{ github.run_id }}" >> $GITHUB_OUTPUT
+
+      - name: Update pubspec.yaml version
+        run: |
+          cd ${{ inputs.app_dir }}
+          version=${{ steps.version.outputs.name }}
+          # 去掉版本号中的 v 前缀
+          version=${version#v}
+          build_number=${{ steps.version.outputs.number }}
+          sed -i '' "s/^version:.*/version: ${version}+${build_number}/" pubspec.yaml
+          echo "Updated pubspec.yaml version to ${version}+${build_number}"
+          head -5 pubspec.yaml
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ inputs.flutter_version }}
+          cache: true
+
+      - name: Enable macOS Desktop
+        run: flutter config --enable-macos-desktop
+
+      - name: Restore Packages
+        run: |
+          cd ${{ inputs.app_dir }}
+          flutter pub get
+
+      - name: Install appdmg
+        run: npm install -g appdmg
+
+      - name: Install flutter_distributor
+        run: dart pub global activate flutter_distributor
+
+      - name: Build macOS
+        run: |
+          cd ${{ inputs.app_dir }}
+          flutter_distributor package --platform macos --targets dmg,zip --skip-clean
+
+      - name: Upload macOS
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: |
+            ${{ inputs.app_dir }}/build/dist/*/*.dmg
+            ${{ inputs.app_dir }}/build/dist/*/*.zip
+
+      - name: Upload Release
+        if: ${{ inputs.release }}
+        uses: softprops/action-gh-release@v1
+        with:
+          name: ${{ steps.version.outputs.name }}
+          prerelease: ${{ inputs.prerelease }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          files: |
+            ${{ inputs.app_dir }}/build/dist/*/*.dmg
+            ${{ inputs.app_dir }}/build/dist/*/*.zip
