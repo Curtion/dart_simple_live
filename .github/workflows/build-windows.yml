@@ -25,7 +25,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -69,7 +69,7 @@ jobs:
           flutter_distributor package --platform windows --targets msix,zip --skip-clean
 
       - name: Upload Windows
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: windows
           path: |
@@ -78,7 +78,7 @@ jobs:
 
       - name: Upload Release
         if: ${{ inputs.release }}
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           name: ${{ steps.version.outputs.name }}
           prerelease: ${{ inputs.prerelease }}
